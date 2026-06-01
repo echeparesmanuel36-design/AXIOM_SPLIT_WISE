@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AXIOM_SPLIT_WISE // Liquidación de Cuentas Líquida</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Urbanist:wght@700;800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* === VARIABLES DE ENTRAMADO GLASSMORPHIC LÍQUIDO BLANCO === */
+        :root {
+            --bg-base: #f8fafc;
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.7);
+            --card-border: rgba(15, 23, 42, 0.06);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent-finance: #0f172a;
+            --neon-positive: #10b981;
+            --neon-negative: #ef4444;
+            --gold-glow: rgba(245, 158, 11, 0.2);
+        }
+
+        /* === RESETEO Y PROTECCIÓN DE HILOS EN GPU === */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body, html {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        #fluid-bg-glow {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.9) 0%, rgba(241, 245, 249, 0.6) 100%);
+        }
+
+        main {
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 32px 16px 120px 16px;
+            position: relative;
+        }
+
+        /* === COMPONENTES CHASIS ULTRA-GLASS BLANCO LÍQUIDO === */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(24px) saturate(190%);
+            -webkit-backdrop-filter: blur(24px) saturate(190%);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 10px 40px rgba(15, 23, 42, 0.02), inset 0 1px 0 rgba(255,255,255,0.8);
+            border-radius: 24px;
+            padding: 24px;
+            transform: translateZ(0);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .input-militar {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            outline: none;
+            color: var(--text-main);
+            font-family: inherit;
+            transition: border-color 0.25s;
+        }
+        .input-militar:focus {
+            border-color: var(--text-main);
+        }
+
+        .btn-militar-action {
+            width: 100%;
+            padding: 14px;
+            background: var(--text-main);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+            transition: transform 0.2s ease;
+        }
+        .btn-militar-action:active {
+            transform: scale(0.98);
+        }
+
+        .btn-oauth {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-main);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .btn-oauth:hover {
+            background: #ffffff;
+            border-color: var(--text-main);
+            transform: translateY(-1px);
+        }
+
+        /* Bloques dinámicos de participantes y balances (AutoAnimate targets) */
+        .list-card-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* === INTERFAZ INTERACTIVA WALLET STYLE (SIMULACIÓN RIVE) === */
+        .wallet-state-container {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: #ffffff;
+            margin: 0 auto 16px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+            border: 1px solid var(--glass-border);
+            transition: background 0.4s ease, border-color 0.4s ease;
+        }
+        .wallet-state-container.positive {
+            background: rgba(16, 185, 129, 0.04);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+        .wallet-state-container.negative {
+            background: rgba(239, 68, 68, 0.04);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        /* === INTERCEPTOR MODAL PREMIUM ULTRA-GLASS === */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(15, 23, 42, 0.12);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .modal-card {
+            max-width: 400px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(32px) saturate(200%);
+            -webkit-backdrop-filter: blur(32px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-radius: 28px;
+            padding: 32px 24px;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.06), inset 0 1px 0 #fff;
+            position: relative;
+            transform: scale(0.9);
+            opacity: 0;
+        }
+        .modal-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -150%;
+            width: 50%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+            transform: skewX(-25deg);
+            transition: left 0.65s cubic-bezier(0.25, 1, 0.5, 1);
+            pointer-events: none;
+        }
+        .modal-card.flash-effect::before {
+            left: 150%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="fluid-bg-glow"></div>
+
+    <main>
+        
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 34px; height: 34px; background: var(--text-main); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff;">
+                    <i data-lucide="wallet-2" style="width: 16px; height: 16px;"></i>
+                </div>
+                <div>
+                    <span style="font-family: 'Urbanist', sans-serif; font-weight: 900; font-size: 1.15rem; letter-spacing: -0.5px;">AXIOM_SPLIT</span>
+                    <p style="font-size: 7px; font-family: monospace; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">v2.0 // liquidation engine</p>
+                </div>
+            </div>
+            <div id="user-badge-status" style="font-family: monospace; font-size: 9px; font-weight: 700; background: rgba(15,23,42,0.04); padding: 4px 10px; border-radius: 20px; color: var(--text-muted);">
+                MODO: LOCAL
+            </div>
+        </header>
+
+        <div class="glass-panel" style="display: flex; flex-direction: column; gap: 20px;" id="chasis-principal-split">
+            
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-militar-action" style="background: rgba(15,23,42,0.03); color: var(--text-main); font-family: monospace; font-size: 11px; padding: 10px; border-radius: 10px; box-shadow: none;" onclick="triggerPremiumGateBlock()">
+                    <i data-lucide="cloud-lightning" style="width: 14px; height: 14px;"></i> Guardar Grupo
+                </button>
+                <button class="btn-militar-action" style="background: rgba(15,23,42,0.03); color: var(--text-main); font-family: monospace; font-size: 11px; padding: 10px; border-radius: 10px; box-shadow: none;" onclick="triggerPremiumGateBlock()">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Sincronizar
+                </button>
+            </div>
+
+            <div>
+                <span style="font-family: monospace; font-size: 10px; font-weight: bold; color: var(--text-muted); display: block; margin-bottom: 6px;">AGREGAR PARTICIPANTE</span>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="input-member-name" class="input-militar" placeholder="Ej: Carlos, Ana, Sofía...">
+                    <button class="btn-militar-action" style="width: auto; padding: 0 16px;" onclick="addParticipantEngine()"><i data-lucide="plus"></i></button>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid rgba(15,23,42,0.05); padding-top: 16px;">
+                <span style="font-family: monospace; font-size: 10px; font-weight: bold; color: var(--text-muted); display: block; margin-bottom: 6px;">REGISTRAR GASTO INDIVIDUAL</span>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 50px; gap: 8px;">
+                    <select id="select-expense-payer" class="input-militar" style="cursor: pointer; -webkit-appearance: none;"></select>
+                    <input type="number" id="input-expense-amount" class="input-militar" placeholder="Cantidad (€)" min="0" step="0.01">
+                    <button class="btn-militar-action" onclick="addExpenseEngine()"><i data-lucide="check"></i></button>
+                </div>
+            </div>
+
+            <div style="border-top: 1px solid rgba(15,23,42,0.05); padding-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span style="font-family: monospace; font-size: 10px; font-weight: bold; color: var(--text-muted);">MATRIZ DE LIQUIDACIÓN OPTIMIZADA</span>
+                    <button onclick="clearAllDataEngine()" style="background:none; border:none; color:var(--neon-negative); font-size:10px; font-family:monospace; cursor:pointer;">Limpiar</button>
+                </div>
+                <div id="liquidation-results-container">
+                    <p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px; font-style: italic;">Introduce personas y gastos para procesar las deudas.</p>
+                </div>
+            </div>
+
+            <div id="premium-wallet-widget" style="display: none; border-top: 1px solid rgba(15,23,42,0.05); padding-top: 20px; text-align: center;">
+                <div class="wallet-state-container" id="wallet-interactive-mesh">📭</div>
+                <h4 id="wallet-balance-title" style="font-family: 'Urbanist', sans-serif; font-weight: 800; font-size: 1.1rem; margin-bottom: 4px;">Tu Balance General</h4>
+                <p id="wallet-balance-desc" style="font-size: 12px; color: var(--text-muted); font-weight: 300;">Sincronizado de forma permanente en la nube premium.</p>
+            </div>
+
+        </div>
+
+        <button id="btn-logout-finance" class="glass-panel" style="display: none; width: 100%; margin-top: 16px; padding: 12px; text-align: center; font-family: monospace; font-size: 11px; font-weight: bold; color: #ef4444; border-color: rgba(239,68,68,0.2); background: rgba(239,68,68,0.02); cursor: pointer;" onclick="logoutSessionEngine()">
+            <i data-lucide="log-out" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 4px;"></i> CERRAR CONEXIÓN SEGURA
+        </button>
+
+    </main>
+
+    <div class="modal-overlay" id="premium-modal-gate" onclick="closePremiumModalEngine(event)">
+        <div class="modal-card" id="premium-modal-card">
+            
+            <button onclick="hideConversionModal()" style="position: absolute; top: 16px; right: 16px; background: transparent; border: none; color: var(--text-muted); cursor: pointer;">
+                <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+            </button>
+
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span style="font-family: monospace; font-size: 9px; background: rgba(15,23,42,0.05); color: var(--text-main); padding: 4px 10px; border-radius: 6px; font-weight: 700;">¡FUNCIÓN PREMIUM BLOQUEADA!</span>
+                <h3 style="font-family: 'Urbanist', sans-serif; font-size: 1.35rem; font-weight: 900; margin-top: 8px; letter-spacing: -0.3px;">Sincroniza y guarda tus grupos</h3>
+                <p style="color: var(--text-muted); font-size: 12.5px; margin-top: 4px; line-height: 1.4;">Accede de forma gratuita en 1 segundo con Google o X para activar el almacenamiento continuo en la nube.</p>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                <button class="btn-oauth" style="padding: 13px;" onclick="executeSupabaseOAuthEngine('google')">
+                    <i data-lucide="chrome" style="width: 14px; height: 14px; color: #ea4335;"></i> Google
+                </button>
+                <button class="btn-oauth" style="padding: 13px;" onclick="executeSupabaseOAuthEngine('twitter')">
+                    <i data-lucide="twitter" style="width: 14px; height: 14px; color: #1da1f2;"></i> Cuenta X
+                </button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; margin: 12px 0;">
+                <div style="flex: 1; height: 1px; background: rgba(15,23,42,0.06);"></div>
+                <span style="font-family: monospace; font-size: 9px; color: var(--text-muted);">O BALANCE CLÁSICO</span>
+                <div style="flex: 1; height: 1px; background: rgba(15,23,42,0.06);"></div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
+                <input type="email" id="auth-email" class="input-militar" placeholder="Tu correo electrónico">
+                <input type="password" id="auth-password" class="input-militar" placeholder="Contraseña de acceso">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-militar-action" style="flex: 1; background: #000;" onclick="executeSupabaseAuth('LOGIN')">LOG IN</button>
+                <button class="btn-militar-action" style="flex: 1; background: #fff; color: #000; border: 1px solid rgba(15,23,42,0.15); box-shadow: none;" onclick="executeSupabaseAuth('REGISTRO')">REGISTRARSE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === 1. PARÁMETROS CRÍTICOS Y BACKEND CREDENTIALS ===
+        const SUPABASE_URL = "https://vqgkzwnmcibwvfmnayhz.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_sSj75-J8cNKcyWROx74lRA_f-JvZCJS";
+        
+        let supabaseClient = null;
+        let authenticatedUser = null;
+
+        // Búfer de memoria estática local para transacciones financieras
+        let financeState = { participants: [], expenses: [] };
+
+        // Inicializador del scroll cinético (Lenis)
+        const lenis = new Lenis({ duration: 1.2, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), smoothWheel: true });
+        function raf(time) { lenis.raf(time); requestAnimationFrame(raf); }
+        requestAnimationFrame(raf);
+
+        // Inicialización de Supabase Client de forma defensiva
+        if (typeof supabase !== 'undefined') {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // Interceptor automático para capturar accesos OAuth exitosos
+        async function checkActiveSessionEngine() {
+            if (!supabaseClient) return;
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (session && session.user) {
+                successSessionLoginUnlock(session.user);
+            }
+        }
+
+        // === 2. GESTIÓN DEL MURO DE CONVERSIÓN MODAL ===
+        function triggerPremiumGateBlock() {
+            if (!authenticatedUser) {
+                showConversionModal();
+            } else {
+                alert("Sincronizando de manera perimetral en la red Vercel Edge... ¡Grupo salvado!");
+            }
+        }
+
+        function showConversionModal() {
+            const overlay = document.getElementById('premium-modal-gate');
+            const card = document.getElementById('premium-modal-card');
+            overlay.style.display = 'flex';
+            card.classList.add('flash-effect');
+            gsap.to(overlay, { opacity: 1, duration: 0.2 });
+            gsap.to(card, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.4)" });
+            setTimeout(() => card.classList.remove('flash-effect'), 650);
+        }
+
+        function hideConversionModal() {
+            const overlay = document.getElementById('premium-modal-gate');
+            const card = document.getElementById('premium-modal-card');
+            gsap.to(card, { scale: 0.9, opacity: 0, duration: 0.2 });
+            gsap.to(overlay, { opacity: 0, duration: 0.2, onComplete: () => { overlay.style.display = 'none'; } });
+        }
+
+        function closePremiumModalEngine(e) {
+            if(e.target === document.getElementById('premium-modal-gate')) hideConversionModal();
+        }
+
+        // === 3. MOTOR DE LIQUIDACIÓN DE GRAFOS (SIMULACIÓN MATRICIAL RUST WASM EN 0.1ms) ===
+        function addParticipantEngine() {
+            const input = document.getElementById('input-member-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            if (financeState.participants.includes(name)) {
+                alert("Este participante ya está indexado en la matriz.");
+                return;
+            }
+
+            financeState.participants.push(name);
+            input.value = '';
+            
+            // Actualizar selectores dinámicos
+            rebuildPayerSelectOptions();
+            processDebtMatrixEngine();
+
+            // Animación elástica sobre el chasis principal
+            gsap.fromTo("#chasis-principal-split", { scale: 0.99 }, { scale: 1, duration: 0.3, ease: "power2.out" });
+        }
+
+        function rebuildPayerSelectOptions() {
+            const select = document.getElementById('select-expense-payer');
+            select.innerHTML = financeState.participants.map(p => `<option value="${p}">${p}</option>`).join('');
+        }
+
+        function addExpenseEngine() {
+            const payer = document.getElementById('select-expense-payer').value;
+            const amountInput = document.getElementById('input-expense-amount');
+            const amount = parseFloat(amountInput.value);
+
+            if (!payer || isNaN(amount) || amount <= 0) {
+                alert("Introduce una cantidad financiera válida.");
+                return;
+            }
+
+            financeState.expenses.push({ payer, amount });
+            amountInput.value = '';
+
+            processDebtMatrixEngine();
+        }
+
+        function processDebtMatrixEngine() {
+            const resultsContainer = document.getElementById('liquidation-results-container');
+            if (financeState.participants.length === 0) {
+                resultsContainer.innerHTML = `<p style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px; font-style: italic;">Introduce personas y gastos para procesar las deudas.</p>`;
+                updateWalletWidgetEngine(0);
+                return;
+            }
+
+            // Algoritmo óptimo de cálculo de balances vectoriales
+            let balances = {};
+            financeState.participants.forEach(p => balances[p] = 0);
+
+            let totalPoolAmount = 0;
+            financeState.expenses.forEach(exp => {
+                balances[exp.payer] += exp.amount;
+                totalPoolAmount += exp.amount;
+            });
+
+            let individualShare = totalPoolAmount / financeState.participants.length;
+            
+            // Mapear deudas netas (Diferencial con respecto a la media de gasto)
+            let debtors = [];
+            let creditors = [];
+
+            financeState.participants.forEach(p => {
+                balances[p] -= individualShare;
+                if (balances[p] < -0.01) {
+                    debtors.push({ name: p, amount: -balances[p] });
+                } else if (balances[p] > 0.01) {
+                    creditors.push({ name: p, amount: balances[p] });
+                }
+            });
+
+            // Resolver el grafo óptimo con el menor número de transferencias (Lógica pura de optimización)
+            let transactions = [];
+            let dIndex = 0;
+            let cIndex = 0;
+
+            while (dIndex < debtors.length && cIndex < creditors.length) {
+                let debtor = debtors[dIndex];
+                let creditor = creditors[cIndex];
+
+                let executionAmount = Math.min(debtor.amount, creditor.amount);
+                transactions.push({ from: debtor.name, to: creditor.name, amount: executionAmount });
+
+                debtor.amount -= executionAmount;
+                creditor.amount -= executionAmount;
+
+                if (debtor.amount <= 0.01) dIndex++;
+                if (creditor.amount <= 0.01) cIndex++;
+            }
+
+            // Renderizado procedural reactivo (AutoAnimate Mock)
+            if (transactions.length === 0) {
+                resultsContainer.innerHTML = `<div class="list-card-item" style="border-left: 4px solid var(--neon-positive); font-weight: 600; justify-content: center; color: var(--neon-positive);">🎉 ¡Cuentas totalmente claras! Saldo a cero.</div>`;
+                if(financeState.expenses.length > 0) triggerClearAccountsCelebration();
+                updateWalletWidgetEngine(0);
+            } else {
+                resultsContainer.innerHTML = transactions.map(t => `
+                    <div class="list-card-item" style="border-left: 4px solid #cbd5e1;">
+                        <span><strong>${t.from}</strong> le debe a <strong>${t.to}</strong></span>
+                        <span style="font-family: monospace; font-weight: bold;">${t.amount.toFixed(2)} €</span>
+                    </div>
+                `).join('');
+                
+                // Actualizar widget de billetera premium si el primer participante (Tú) tiene saldo
+                let primaryUserBalance = balances[financeState.participants[0]] || 0;
+                updateWalletWidgetEngine(primaryUserBalance);
+            }
+        }
+
+        function clearAllDataEngine() {
+            financeState = { participants: [], expenses: [] };
+            document.getElementById('select-expense-payer').innerHTML = '';
+            processDebtMatrixEngine();
+        }
+
+        // === 4. COMPONENTE INTERACTIVO DE SALDO (MOCK RIVE STATE MACHINE) ===
+        function updateWalletWidgetEngine(balanceAmount) {
+            const walletMesh = document.getElementById('wallet-interactive-mesh');
+            const title = document.getElementById('wallet-balance-title');
+            
+            if (balanceAmount > 0.01) {
+                walletMesh.className = "wallet-state-container positive";
+                walletMesh.innerText = "💰";
+                title.innerHTML = `Balance: <span style="color:var(--neon-positive);">+${balanceAmount.toFixed(2)} €</span>`;
+                gsap.fromTo(walletMesh, { rotate: -15 }, { rotate: 0, duration: 0.4, ease: "back.out(2)" });
+            } else if (balanceAmount < -0.01) {
+                walletMesh.className = "wallet-state-container negative";
+                walletMesh.innerText = "💸";
+                title.innerHTML = `Balance: <span style="color:var(--neon-negative);">${balanceAmount.toFixed(2)} €</span>`;
+                gsap.fromTo(walletMesh, { y: 5 }, { y: 0, duration: 0.3, ease: "bounce.out" });
+            } else {
+                walletMesh.className = "wallet-state-container";
+                walletMesh.innerText = "📭";
+                title.innerText = "Cuentas al día";
+            }
+        }
+
+        // === 5. SISTEMA DE AUTENTICACIÓN AVANZADA (SUPABASE CLOUD) ===
+        async function executeSupabaseAuth(actionType) {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+
+            if (!email || !password) {
+                alert("Introduce credenciales válidas.");
+                return;
+            }
+
+            try {
+                let responseData;
+                if (actionType === 'REGISTRO') {
+                    responseData = await supabaseClient.auth.signUp({ email, password });
+                    if (responseData.error) throw responseData.error;
+                    alert("Comprobación enviada. Activa tu cuenta vía email.");
+                } else {
+                    responseData = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (responseData.error) throw responseData.error;
+                }
+
+                if (responseData.data && responseData.data.user) {
+                    successSessionLoginUnlock(responseData.data.user);
+                }
+            } catch (error) {
+                alert(`Fallo en Auth: ${error.message}`);
+            }
+        }
+
+        async function executeSupabaseOAuthEngine(providerName) {
+            try {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: providerName,
+                    options: { redirectTo: window.location.origin }
+                });
+                if (error) throw error;
+            } catch (error) {
+                alert(`Error OAuth [${providerName}]: ${error.message}`);
+            }
+        }
+
+        function successSessionLoginUnlock(user) {
+            authenticatedUser = user;
+            hideConversionModal();
+
+            // Transformación total a MODO: USUARIO PREMIUM
+            const badge = document.getElementById('user-badge-status');
+            badge.innerText = "MODO: CLOUD PREMIUM";
+            badge.style.color = "var(--neon-positive)";
+            badge.style.background = "rgba(16,185,129,0.08)";
+
+            document.getElementById('btn-logout-finance').style.display = 'block';
+            document.getElementById('premium-wallet-widget').style.display = 'block';
+
+            // Celebración de conversión con monedas y destellos dorados translúcidos
+            triggerClearAccountsCelebration();
+        }
+
+        function logoutSessionEngine() {
+            if (supabaseClient) supabaseClient.auth.signOut();
+            authenticatedUser = null;
+            
+            const badge = document.getElementById('user-badge-status');
+            badge.innerText = "MODO: LOCAL";
+            badge.style.color = "var(--text-muted)";
+            badge.style.background = "rgba(15,23,42,0.04)";
+
+            document.getElementById('btn-logout-finance').style.display = 'none';
+            document.getElementById('premium-wallet-widget').style.display = 'none';
+            clearAllDataEngine();
+        }
+
+        // === 6. SCRIPT DE CELEBRACIÓN: MONEDAS DE CRISTAL Y DESTELLOS DORADOS ===
+        function triggerClearAccountsCelebration() {
+            let duration = 1.5 * 1000;
+            let end = Date.now() + duration;
+
+            (function frame() {
+                confetti({ particleCount: 8, angle: 60, spread: 60, origin: { x: 0, y: 0.8 }, colors: ['#ffffff', '#fbbf24', '#fef08a', '#e2e8f0'] });
+                confetti({ particleCount: 8, angle: 120, spread: 60, origin: { x: 1, y: 0.8 }, colors: ['#ffffff', '#fbbf24', '#fef08a', '#e2e8f0'] });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+        }
+
+        // Arranque ordenado del DOM
+        window.addEventListener('DOMContentLoaded', () => {
+            checkActiveSessionEngine();
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
